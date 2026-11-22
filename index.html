@@ -1,0 +1,1019 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1f1f1f;
+    --muted: #6b6b6b;
+    --user: #f2f2f2;
+    --line: #e5e5e5;
+    --accent: #e0393e;
+    --accent-rgb: 224, 57, 62;
+    --sans: "Anthropic Sans", "Styrene B", "Styrene A", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: "Anthropic Serif", "Tiempos Text", Georgia, "Times New Roman", serif;
+  }
+  :root[data-theme="dark"] {
+    --bg: #262624; --text: #ececec; --muted: #9a9a9a; --user: #3a3a38; --line: #3a3a38;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] { color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #262624;
+      --text: #ececec;
+      --muted: #9a9a9a;
+      --user: #3a3a38;
+      --line: #3a3a38;
+    }
+  }
+  * {
+    box-sizing: border-box; margin: 0; padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  ::selection { background: rgba(var(--accent-rgb), .22); }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  /* الصفحة كتتبع الحجم الحقيقي المرئي (كيبورد): ما كتتزحلقش وما كتبقاش فيها فراغ */
+  html { overflow: hidden; }
+  body { position: fixed; left: 0; right: 0; top: var(--app-top, 0px); height: var(--app-h, 100%); }
+  button { font-family: inherit; outline: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- الشريط العلوي ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 52px; padding: 0 10px 0 6px; border-bottom: 1px solid var(--line);
+    position: relative; z-index: 15; background: var(--bg);
+  }
+  .hgroup { display: flex; align-items: center; gap: 4px; }
+  .icon-btn {
+    background: none; border: none; color: var(--text);
+    width: 40px; height: 40px; border-radius: 12px;
+    display: grid; place-items: center; cursor: pointer;
+  }
+
+  /* ---------- الرسائل ---------- */
+  main { flex: 1; overflow-y: auto; padding: 24px 16px; }
+  .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  .msg { line-height: 1.65; font-size: 16px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--user); padding: 10px 14px; border-radius: 12px; max-width: 85%; line-height: 1.5; unicode-bidi: plaintext; text-align: start; }
+  .msg.ai { align-self: flex-start; background: var(--user); padding: 10px 14px; border-radius: 12px; max-width: 85%; line-height: 1.5; unicode-bidi: plaintext; text-align: start; }
+  .msg.sys { align-self: center; color: var(--muted); font-size: 13px; }
+  .typing { align-self: flex-start; display: flex; align-items: center; padding: 6px 6px; animation: tin .3s ease-out; }
+  .sq { position: relative; width: 30px; height: 30px; animation: tspin 2.2s linear infinite; }
+  .sq i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 1.5px; background: var(--accent);
+    transform: rotate(var(--a)) translateY(-10px); animation: tpulse 1.2s ease-in-out infinite; animation-delay: calc(var(--n) * -.2s); }
+  @keyframes tspin { to { transform: rotate(360deg); } }
+  @keyframes tpulse { 0%, 100% { scale: .45; opacity: .3; } 50% { scale: 1.25; opacity: 1; } }
+  @keyframes tin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .msg-wrap { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 85%; }
+  .thumbs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .thumbs img { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
+  .thumbs img:only-child { width: 120px; height: 120px; }
+
+  /* ---------- صندوق الكتابة ---------- */
+  .composer { padding: 8px 16px 20px; }
+  .box {
+    max-width: 760px; margin: 0 auto; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 22px;
+    padding: 12px 12px 8px; box-shadow: 0 2px 14px rgba(0,0,0,.05);
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .box:focus-within { border-color: var(--line); box-shadow: 0 2px 14px rgba(0,0,0,.05); }
+  textarea {
+    width: 100%; border: none; outline: none; resize: none;
+    background: transparent; color: var(--text); font: inherit; font-size: 16px;
+    min-height: 28px; max-height: 200px; padding: 4px 6px; caret-color: var(--accent);
+  }
+  .row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+  .send {
+    background: var(--accent); color: #fff; border: none;
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center; cursor: pointer; transition: transform .1s, opacity .2s;
+  }
+  .send:active:not(:disabled) { transform: scale(.94); }
+  .send:disabled { opacity: .3; cursor: default; }
+  .send svg { width: 18px; height: 18px; }
+  .attach {
+    background: none; border: 1px solid var(--line); color: var(--text);
+    width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; cursor: pointer;
+  }
+  .attach svg { width: 18px; height: 18px; }
+  .previews { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 6px 8px; }
+  .previews:empty { display: none; }
+  .thumb { position: relative; width: 60px; height: 60px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+  .thumb button svg { width: 11px; height: 11px; stroke-width: 3; }
+  .thumb button {
+    position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%;
+    border: none; background: var(--text); color: var(--bg); display: grid; place-items: center; cursor: pointer;
+  }
+
+  /* ---------- القائمة الجانبية ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40;
+    visibility: hidden; opacity: 0; transition: opacity .2s, visibility .2s;
+  }
+  .overlay.open { visibility: visible; opacity: 1; }
+  .side {
+    position: absolute; top: 0; left: 0; bottom: 0; width: min(240px, 76vw);
+    background: var(--bg); border-right: 1px solid var(--line);
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 10px 14px; display: flex; flex-direction: column; gap: 2px;
+    transform: translateX(-100%); transition: transform .22s ease;
+  }
+  .overlay.open .side { transform: translateX(0); }
+  .s-item {
+    display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+    background: none; border: none; color: var(--text); padding: 6px 8px; border-radius: 12px; cursor: pointer;
+  }
+  .s-text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .s-text b { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-text small { font-size: 11px; color: var(--muted); }
+  .s-icon {
+    width: 28px; height: 28px; background: none;
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .s-icon svg { width: 18px; height: 18px; }
+  .s-item .go { width: 12px; height: 12px; color: var(--muted); }
+  .s-item.danger { color: var(--accent); background: none; }
+  .s-sep { height: 1px; background: var(--line); margin: 6px 8px; }
+  .dev { margin-top: auto; padding: 12px 8px 0; font-size: 11px; color: var(--muted); }
+  .dev span { color: var(--text); font-weight: 500; margin-left: 4px; }
+
+  /* ---------- الصورة الشخصية ---------- */
+  .avatar {
+    position: relative; width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: var(--user) center / cover no-repeat; border: 1px solid var(--line);
+    display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--text);
+    text-transform: uppercase; overflow: hidden;
+  }
+  .avatar.noimg { background-color: var(--accent); color: #fff; border-color: transparent; }
+  button.avatar.lg { width: 104px; height: 104px; font-size: 42px; cursor: pointer; }
+
+  /* ---------- صفحة الملف الشخصي ---------- */
+  .page {
+    position: fixed; inset: 0; z-index: 50; background: var(--bg);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); visibility: hidden; transition: transform .25s ease, visibility .25s;
+  }
+  .page.open { transform: none; visibility: visible; }
+  .page-head {
+    display: grid; grid-template-columns: 40px 1fr 40px; align-items: center;
+    height: 52px; padding: 0 6px; padding-top: env(safe-area-inset-top, 0px); box-sizing: content-box;
+  }
+  .page-head h2 { text-align: center; font-family: var(--serif); font-size: 19px; font-weight: 600; }
+  .page-body {
+    flex: 1; overflow-y: auto; width: 100%; max-width: 520px; margin: 0 auto;
+    padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; gap: 22px;
+  }
+  .p-photo { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .link-row { display: flex; align-items: center; gap: 10px; }
+  .btn.sm { height: 38px; padding: 0 16px; font-size: 14px; border-radius: 12px; }
+  .btn.wide { width: 100%; height: 48px; }
+  .btn.wide:disabled, .btn.wide:disabled:hover, .btn.wide:disabled:active {
+    background: var(--user); color: var(--muted); border-color: var(--line); filter: none; cursor: default;
+  }
+  .field { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text); }
+  .field input {
+    font: inherit; font-size: 16px; color: var(--text); background: transparent;
+    border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; outline: none; caret-color: var(--accent);
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: rgba(var(--accent-rgb), .55); }
+
+  /* ---------- القوائم المنسدلة ---------- */
+  .dd { position: relative; }
+  .chev { width: 12px; height: 12px; stroke-width: 2.4; transition: transform .2s; flex-shrink: 0; }
+  [aria-expanded="true"] > .chev { transform: rotate(180deg); }
+  .menu {
+    position: absolute; top: calc(100% + 8px); left: 0; min-width: 190px; z-index: 30;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 14px;
+    padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.14); display: none;
+  }
+  .dd.right .menu { left: auto; right: 0; }
+  .menu.open { display: block; animation: drop .16s ease-out; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .menu .item {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: none; border: none; color: var(--text); font-size: 14px;
+    padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  }
+  .menu .item svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .menu .item span { flex: 1; }
+  .menu .item svg.mi { width: 21px; height: 21px; }
+  .menu .item .ck { width: 16px; height: 16px; opacity: 0; }
+  .menu .item.sel .ck { opacity: 1; }
+
+  .model-btn {
+    display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px 0 8px;
+    font-size: 12.5px; font-weight: 600; letter-spacing: .01em;
+    color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; cursor: pointer;
+  }
+  .model-btn .groq-ico { width: 18px; height: 18px; }
+
+  .status-btn {
+    --tone: 229, 72, 77;
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 8px;
+    font-size: 12.5px; font-weight: 500; letter-spacing: .01em;
+    color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; cursor: pointer;
+  }
+  .status-btn[data-state="ok"] { --tone: 48, 164, 108; }
+  .status-btn .chev { color: var(--muted); }
+  .st-ico { width: 17px; height: 17px; color: rgb(var(--tone)); }
+  .st-ico .on, .st-ico .off { display: none; }
+  .status-btn[data-state="ok"] .st-ico .on { display: inline; }
+  .status-btn[data-state="bad"] .st-ico .off { display: inline; }
+
+  /* قائمة النماذج */
+  .mico { display: inline-flex; }
+  .model-btn svg.mi { width: 18px; height: 18px; }
+  #modelMenu {
+    top: calc(100% + 6px); min-width: 210px; width: 210px; max-width: 80vw; padding: 3px; border-radius: 14px;
+    background: var(--bg); border: 1px solid var(--line);
+    box-shadow: 0 8px 24px -6px rgba(0,0,0,.14);
+    transform-origin: top left;
+  }
+  #modelMenu.open { animation: pop .16s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
+  #modelMenu .item {
+    height: 30px; padding: 0 10px 0 5px; gap: 10px;
+    font-size: 14px; font-weight: 400; white-space: nowrap; border-radius: 10px;
+    transition: background .15s;
+  }
+  #modelMenu .item + .item { margin-top: 1px; }
+  #modelMenu .item svg.mi {
+    width: 22px; height: 22px; padding: 3px; border-radius: 7px;
+    background: var(--user); flex-shrink: 0;
+  }
+  #modelMenu .item svg.mi:has(rect) { padding: 2px; }
+  #modelMenu .item .ck { width: 17px; height: 17px; stroke-width: 2.2; color: var(--accent); }
+  #modelMenu .item.sel { background: var(--user); font-weight: 500; }
+  #modelMenu .item.sel svg.mi { background: var(--bg); }
+
+  #statusMenu {
+    top: calc(100% + 6px); min-width: 210px; width: 210px; max-width: 80vw; padding: 3px; border-radius: 14px;
+    background: var(--bg); border: 1px solid var(--line);
+    box-shadow: 0 8px 24px -6px rgba(0,0,0,.14);
+    transform-origin: top right;
+  }
+  #statusMenu.open { animation: pop .16s ease-out; }
+  #statusMenu .item {
+    height: 30px; padding: 0 10px 0 5px; gap: 10px;
+    font-size: 14px; font-weight: 400; white-space: nowrap; border-radius: 10px;
+    transition: background .15s;
+  }
+  #statusMenu .item + .item { margin-top: 1px; }
+  #statusMenu .fico {
+    width: 22px; height: 22px; padding: 3px; border-radius: 7px;
+    background: var(--user); flex-shrink: 0; stroke: none;
+  }
+  #statusMenu .item:first-child .fico { padding: 2px; }
+
+  /* ---------- النوافذ ---------- */
+  .panel {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px;
+  }
+  .panel.open { display: flex; }
+  .dialog {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 22px;
+    width: 100%; max-width: 400px; padding: 22px; display: flex; flex-direction: column; gap: 14px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.22); animation: drop .18s ease-out;
+  }
+  .dialog h3 { font-size: 18px; font-weight: 600; }
+  .dialog p { font-size: 14px; line-height: 1.55; color: var(--muted); }
+  .btn {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    font-size: 15px; font-weight: 500; height: 44px; padding: 0 18px; border-radius: 14px; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .row-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .cookie-box {
+    width: 100%; min-height: 150px; border: 1px solid var(--line); border-radius: 14px;
+    background: transparent; color: var(--text); font: 13px monospace; padding: 12px; resize: vertical; outline: none;
+  }
+  .cookie-box:focus { border-color: rgba(var(--accent-rgb), .55); }
+
+  /* ---------- نافذة الكوكيز (sheet) ---------- */
+  .sheet-panel { align-items: flex-end; padding: 0; background: rgba(0,0,0,.45); }
+  .sheet {
+    width: 100%; max-width: 520px; margin: 0 auto; background: var(--bg);
+    border-radius: 0; padding: 10px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; gap: 16px;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.18); animation: slideUp .4s cubic-bezier(.2,.9,.3,1.05);
+  }
+  @keyframes slideUp { from { transform: translateY(105%); } to { transform: none; } }
+  .grab { width: 38px; height: 4px; border-radius: 3px; background: #cfcfcf; margin: 0 auto; position: relative; touch-action: none; }
+  .grab::before { content: ""; position: absolute; inset: -14px -40px; }
+  .sh-ico.warn { background: rgba(var(--accent-rgb), .1); color: var(--accent); }
+  .sh-ico.warn svg { width: 20px; height: 20px; stroke-width: 2; }
+  .sheet.drag { transition: none; animation: none; }
+  .sh-head { display: flex; align-items: center; gap: 12px; }
+  .sh-ico { width: 38px; height: 38px; border-radius: 10px; background: var(--user); display: grid; place-items: center; flex-shrink: 0; }
+  .sh-cookie { width: 22px; height: 22px; stroke: none; }
+  .sh-t h3 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .sh-t p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .need { display: flex; align-items: center; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px 0 9px;
+    border-radius: 8px; background: var(--user); font: 500 11.5px/1 ui-monospace, Menlo, monospace; color: var(--muted);
+    transition: background .2s, color .2s;
+  }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: block; transition: background .2s; }
+  .chip.ok { background: rgba(48,164,108,.14); color: #26895a; }
+  .chip.ok i { background: #30a46c; }
+  .need-t { font-size: 11.5px; color: var(--muted); margin-left: 2px; }
+  .cbox { position: relative; }
+  .cbox textarea {
+    width: 100%; height: 150px; resize: none; outline: none; display: block;
+    border: 1.5px solid var(--line); border-radius: 12px; background: var(--user);
+    color: var(--text); font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 12px 12px 42px;
+    caret-color: var(--accent); transition: border-color .2s, background .2s;
+  }
+  .cbox textarea:focus { border-color: rgba(var(--accent-rgb), .55); background: var(--bg); }
+  .paste {
+    position: absolute; right: 10px; bottom: 10px; height: 30px; padding: 0 14px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .paste:active { background: var(--user); }
+  .sh-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+  .sh-btns .btn { height: 40px; border-radius: 12px; font-size: 14.5px; font-weight: 600; }
+  .sh-btns .btn.primary:disabled { background: rgba(var(--accent-rgb), .3); border-color: transparent; cursor: default; filter: none; }
+
+  /* ---------- زر الوضع الليلي ---------- */
+  .sw { width: 36px; height: 21px; border-radius: 999px; background: var(--line); position: relative; flex-shrink: 0; transition: background .2s; }
+  .sw::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s;
+  }
+  #nightBtn[aria-checked="true"] .sw { background: var(--accent); }
+  #nightBtn[aria-checked="true"] .sw::after { transform: translateX(15px); }
+  #nightBtn .sun { display: none; }
+  #nightBtn[aria-checked="true"] .sun { display: block; }
+  #nightBtn[aria-checked="true"] .moon { display: none; }
+
+  /* ---------- اللمس والتمرير ---------- */
+  .icon-btn:active, .s-item:active, .menu .item:active, .model-btn:active,
+  .status-btn:active, .attach:active, .btn:active { background: var(--user); }
+  .btn.primary:active { background: var(--accent); filter: brightness(.92); }
+  .s-item.danger:active { background: var(--user); }
+  @media (hover: hover) {
+    .icon-btn:hover, .s-item:hover, .menu .item:hover, .model-btn:hover,
+    .status-btn:hover, .attach:hover, .btn:hover { background: var(--user); }
+    .btn.primary:hover { background: var(--accent); filter: brightness(.95); }
+    .s-item.danger:hover { background: var(--user); }
+  }
+  button:focus-visible { outline: 2px solid rgba(var(--accent-rgb), .55); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- أيقونات النماذج (داخل الملف، تخدم بلا إنترنت) -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+  <linearGradient id="petalGrad" gradientUnits="userSpaceOnUse" x1="373" y1="85" x2="373" y2="640">
+    <stop offset="0" stop-color="#d957ff"/><stop offset="1" stop-color="#5f4ffd"/>
+  </linearGradient>
+  <radialGradient id="petalShine" cx=".35" cy=".25" r=".7">
+    <stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+  </radialGradient>
+  <g id="petals"><ellipse rx="61.3" ry="92.6" transform="translate(369.5 168.2) rotate(145.6)"/><ellipse rx="61.7" ry="92.8" transform="translate(524.6 244.6) rotate(16.0)"/><ellipse rx="61.3" ry="93.0" transform="translate(212.8 241.7) rotate(93.8)"/><ellipse rx="61.9" ry="92.5" transform="translate(172.2 410.2) rotate(42.5)"/><ellipse rx="61.9" ry="93.3" transform="translate(561.4 413.8) rotate(68.2)"/><ellipse rx="61.4" ry="92.8" transform="translate(278.8 546.6) rotate(170.9)"/><ellipse rx="61.9" ry="92.6" transform="translate(452.3 548.5) rotate(119.1)"/></g>
+</defs></svg>
+
+<header>
+  <div class="hgroup">
+    <button class="icon-btn" id="menuBtn" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="13" y2="16"/></svg>
+    </button>
+    <div class="dd">
+      <button class="model-btn" id="modelBtn" aria-haspopup="menu" aria-expanded="false">
+        <span class="mico" id="modelIco"><svg class="groq-ico" viewBox="0 0 24 24"><path d="M2.5 13.4C2.5 10.3 5.2 8.3 8.6 8.3C11.5 8.3 13.4 9.5 15 9.5C16.4 9.5 17.3 8.7 17.7 7.4L18.2 5.6C17.6 5.4 17.2 4.9 17.2 4.3C18.3 4.4 19.1 4.8 19.7 5.5C20.1 4.7 20.9 4.3 21.8 4.3C21.7 5.3 21.3 6.1 20.6 6.7C20.9 7.4 20.9 8.200 20.6 9C20.1 13.900 17 17.400 12.200 17.400C9.800 17.400 8.400 16.400 7 16.400C5.400 16.400 4.200 16.800 3.400 17.200C3 16 2.500 14.800 2.500 13.400Z" fill="#4D6BFE" stroke="none"/><path d="M10.5 16.800C11.800 17.100 13.400 17.800 13.900 19.700C12 19.900 10.600 19 9.700 17.300Z" fill="#4D6BFE" stroke="none"/><circle cx="6.2" cy="12" r=".9" fill="#fff" stroke="none"/></svg></span>
+        <span id="modelLabel">DeepSeek</span>
+        <svg class="chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="menu" id="modelMenu" role="menu">
+        <button class="item sel" role="menuitem" data-model="deepseek" data-label="DeepSeek">
+          <svg class="mi" viewBox="0 0 24 24"><path d="M2.5 13.4C2.5 10.3 5.2 8.3 8.6 8.3C11.5 8.3 13.4 9.5 15 9.5C16.4 9.5 17.3 8.7 17.7 7.4L18.2 5.6C17.6 5.4 17.2 4.9 17.2 4.3C18.3 4.4 19.1 4.8 19.7 5.5C20.1 4.7 20.9 4.3 21.8 4.3C21.7 5.3 21.3 6.1 20.6 6.7C20.9 7.4 20.9 8.200 20.6 9C20.1 13.900 17 17.400 12.200 17.400C9.800 17.400 8.400 16.400 7 16.400C5.400 16.400 4.200 16.800 3.400 17.200C3 16 2.500 14.800 2.500 13.400Z" fill="#4D6BFE" stroke="none"/><path d="M10.5 16.800C11.800 17.100 13.400 17.800 13.900 19.700C12 19.900 10.600 19 9.700 17.300Z" fill="#4D6BFE" stroke="none"/><circle cx="6.2" cy="12" r=".9" fill="#fff" stroke="none"/></svg>
+          <span>DeepSeek</span>
+        <svg class="ck" viewBox="0 0 24 24"><polyline points="5 12.5 10 17.5 19 7.5"/></svg>
+        </button>
+        <button class="item" role="menuitem" data-model="gemini" data-label="Gemini">
+          <svg class="mi" viewBox="0 0 24 24"><defs><linearGradient id="gmGrad" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1C7DFF"/><stop offset=".5" stop-color="#9168C0"/><stop offset="1" stop-color="#D96570"/></linearGradient></defs><path d="M12 1.5C12.700 7.700 16.300 11.300 22.500 12 16.300 12.700 12.700 16.300 12 22.500 11.300 16.300 7.700 12.700 1.500 12 7.700 11.300 11.300 7.700 12 1.500Z" fill="url(#gmGrad)" stroke="none"/></svg>
+          <span>Gemini</span>
+        <svg class="ck" viewBox="0 0 24 24"><polyline points="5 12.5 10 17.5 19 7.5"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="dd right">
+    <button class="status-btn" id="status" data-state="bad" aria-haspopup="menu" aria-expanded="false" aria-label="Account status">
+      <svg class="st-ico" viewBox="0 0 24 24"><g class="off"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="2.8"/><path d="M6.6 18.2c.9-2.3 3-3.5 5.4-3.5s4.5 1.2 5.4 3.5"/><path d="M5.6 5.6l12.8 12.8"/></g><g class="on"><circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="M7.5 12.4l3 3 6-6.6" fill="none" stroke="#fff" stroke-width="2.4"/></g></svg>
+      <span id="statusLabel">Account not working</span>
+    </button>
+    <div class="menu" id="statusMenu" role="menu">
+      <button class="item" role="menuitem" id="loginFb"><svg class="fico" viewBox="0 0 720 714"><rect width="720" height="714" rx="150" fill="#0866FF"/><path fill="#fff" d="M272 714V465H198V355H272V300C272 190 330 128 440 128 470 128 500 130 527 134V235C510 233 490 233 470 233 425 233 403 258 403 305V355H520L500 465H403V714Z"/></svg><span>Log in with Facebook</span></button>
+      <button class="item" role="menuitem" id="openCookies"><svg class="fico" viewBox="0 0 24 24"><defs><mask id="bite"><rect width="24" height="24" fill="#fff"/><circle cx="20.3" cy="3.7" r="4.6" fill="#000"/></mask></defs><g mask="url(#bite)"><circle cx="12" cy="12" r="11.2" fill="#B52A30"/><circle cx="12" cy="12" r="10" fill="#E5484D"/></g><g fill="#6B1418"><ellipse cx="7.4" cy="8" rx="2.2" ry="1.7" transform="rotate(-25 7.4 8)"/><ellipse cx="13.2" cy="12.2" rx="2.3" ry="1.8" transform="rotate(25 13.2 12.2)"/><ellipse cx="7" cy="15.8" rx="2.1" ry="1.6" transform="rotate(12 7 15.8)"/><ellipse cx="14.8" cy="18.2" rx="2.1" ry="1.6" transform="rotate(-18 14.8 18.2)"/><ellipse cx="11.6" cy="5.4" rx="1.7" ry="1.3" transform="rotate(15 11.6 5.4)"/><ellipse cx="19" cy="14.2" rx="1.6" ry="1.3" transform="rotate(30 19 14.2)"/></g></svg><span>Enter cookies</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="chatBox">
+  <div class="wrap" id="messages"></div>
+</main>
+
+<div class="composer">
+  <div class="box">
+    <div class="previews" id="previews"></div>
+    <textarea id="input" rows="1" placeholder="Type a message..."></textarea>
+    <div class="row">
+      <button class="attach" id="attachBtn" aria-label="Send images">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="9" cy="9.5" r="1.6"/><path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L15 16l1.700-1.500a1.600 1.600 0 0 1 2.200 0L20.500 16"/></svg>
+      </button>
+      <input type="file" id="fileInput" accept="image/*" multiple hidden>
+      <button class="send" id="sendBtn" aria-label="Send" disabled>
+        <svg viewBox="0 0 24 24"><path d="M12 19V5.500"/><path d="M5.500 11.500L12 5l6.500 6.500"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- القائمة الجانبية -->
+<div class="overlay" id="sideOverlay">
+  <div class="side">
+    <button class="s-item" id="profileBtn">
+      <span class="avatar" id="avatarSm"><span class="ini"></span></span>
+      <span class="s-text"><b id="sideName">Guest</b><small>Profile</small></span>
+      <svg class="go" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>
+    </button>
+    <div class="s-sep"></div>
+    <button class="s-item" id="scanBtn">
+      <span class="s-icon"><svg viewBox="0 0 24 24"><path d="M7 21l-4.300-4.300c-1-1-1-2.500 0-3.400l9.600-9.600c1-1 2.500-1 3.400 0l5.600 5.600c1 1 1 2.500 0 3.400L13 21"/><path d="M22 21H7"/><path d="M5 11l9 9"/></svg></span>
+      <span class="s-text"><b>Clear Data</b></span>
+    </button>
+    <button class="s-item" id="nightBtn" role="switch" aria-checked="false">
+      <span class="s-icon">
+        <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.500z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.600 5.600l1.400 1.400M17 17l1.400 1.400M5.600 18.400L7 17M17 7l1.400-1.400"/></svg>
+      </span>
+      <span class="s-text"><b>Night mode</b></span>
+      <span class="sw"></span>
+    </button>
+    <button class="s-item danger" id="signOutBtn">
+      <span class="s-icon"><svg viewBox="0 0 24 24"><path d="M4 5v14"/><path d="M9 12h11"/><path d="M15.500 7.500L20 12l-4.500 4.500"/></svg></span>
+      <span class="s-text"><b>Sign out</b></span>
+    </button>
+    <div class="dev">Developers <span>Mustafa Hachmi</span></div>
+  </div>
+</div>
+
+<!-- الملف الشخصي (صفحة كاملة) -->
+<div class="page" id="profilePage">
+  <div class="page-head">
+    <button class="icon-btn" id="profileBack" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+    </button>
+    <h2>Profile</h2>
+    <span></span>
+  </div>
+  <div class="page-body">
+    <div class="p-photo">
+      <button class="avatar lg" id="avatarLg" aria-label="Change photo"><span class="ini"></span></button>
+      <div class="link-row">
+        <button class="btn sm" id="changePhoto">Change photo</button>
+        <button class="btn sm" id="removePhoto">Remove</button>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" hidden>
+    </div>
+    <label class="field"><span>Name</span><input id="nameInput" maxlength="32" placeholder="Your name" autocomplete="off"></label>
+    <button class="btn primary wide" id="saveProfile" disabled>Update profile</button>
+  </div>
+</div>
+
+<!-- التأكيد -->
+<div class="panel sheet-panel" id="confirmPanel">
+  <div class="sheet" role="dialog">
+    <div class="grab"></div>
+    <div class="sh-head">
+      <span class="sh-ico warn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.500v5.500M12 16.300v.2"/></svg></span>
+      <div class="sh-t"><h3 id="confirmTitle"></h3><p id="confirmText"></p></div>
+    </div>
+    <div class="sh-btns">
+      <button class="btn" id="confirmCancel">Cancel</button>
+      <button class="btn primary" id="confirmOk"></button>
+    </div>
+  </div>
+</div>
+
+<!-- إدخال الكوكيز -->
+<div class="panel sheet-panel" id="cookiePanel">
+  <div class="sheet" role="dialog" aria-label="Enter cookies">
+    <div class="grab"></div>
+    <div class="sh-head">
+      <span class="sh-ico"><svg class="sh-cookie" viewBox="0 0 24 24"><defs><mask id="bite2"><rect width="24" height="24" fill="#fff"/><circle cx="20.3" cy="3.7" r="4.6" fill="#000"/></mask></defs><g mask="url(#bite2)"><circle cx="12" cy="12" r="11.2" fill="#B52A30"/><circle cx="12" cy="12" r="10" fill="#E5484D"/></g><g fill="#6B1418"><ellipse cx="7.4" cy="8" rx="2.2" ry="1.7" transform="rotate(-25 7.4 8)"/><ellipse cx="13.2" cy="12.2" rx="2.3" ry="1.8" transform="rotate(25 13.2 12.2)"/><ellipse cx="7" cy="15.8" rx="2.1" ry="1.6" transform="rotate(12 7 15.8)"/><ellipse cx="14.8" cy="18.2" rx="2.1" ry="1.6" transform="rotate(-18 14.8 18.2)"/><ellipse cx="11.6" cy="5.4" rx="1.7" ry="1.3" transform="rotate(15 11.6 5.4)"/><ellipse cx="19" cy="14.2" rx="1.6" ry="1.3" transform="rotate(30 19 14.2)"/></g></svg></span>
+      <div class="sh-t"><h3>Enter cookies</h3><p>Paste them as JSON or as a cookie string</p></div>
+    </div>
+    <div class="need">
+      <span class="chip" id="chipUser"><i></i>c_user</span>
+      <span class="chip" id="chipXs"><i></i>xs</span>
+      <span class="need-t">required</span>
+    </div>
+    <div class="cbox">
+      <textarea id="cookieInput" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="c_user=...; xs=...; ..."></textarea>
+      <button class="paste" id="pasteCookies" type="button">Paste</button>
+    </div>
+    <div class="sh-btns">
+      <button class="btn" id="cancelCookies">Cancel</button>
+      <button class="btn primary" id="saveCookies" disabled>Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const KEY = 'fbCookies';
+  let running = false;
+  let images = [];
+  let model = 'deepseek';
+  const MODEL_PREFIX = { deepseek: '1 ', gemini: '2 ' }; // كيتزاد قدام النص فتعليق فيسبوك
+
+  const $ = (id) => document.getElementById(id);
+  const messages = $('messages');
+  const chatBox = $('chatBox');
+  const input = $('input');
+  const sendBtn = $('sendBtn');
+
+  // ---------- التخزين ----------
+  function getLS(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function setLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function delLS(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  const getCookies = () => getLS(KEY);
+  const setCookies = (v) => { delLS('signedOut'); setLS(KEY, v); };
+  const delCookies = () => { setLS('signedOut', '1'); delLS(KEY); };
+
+  function cookiesValid(raw) {
+    if (!raw) return false;
+    try {
+      const names = JSON.parse(raw).map(c => c.name);
+      return names.includes('c_user') && names.includes('xs');
+    } catch (e) {
+      return /(^|;\s*)c_user=/.test(raw) && /(^|;\s*)xs=/.test(raw);
+    }
+  }
+
+  // ---------- الحالة ----------
+  // الحساب شغال: إلا كاينة كوكيز صحيحة فالتخزين، أو حساب داخل التطبيق (facebook.json) ومازال ما تسجلش الخروج
+  function accountOk() {
+    // الحالة الحقيقية كتجي من Java (كيتحقق من صفحة فيسبوك والكوكيز المحطوطة فعلا)
+    try {
+      const b = window.AndroidBridge;
+      if (b && b.accountReady) return !!b.accountReady() && getLS('signedOut') !== '1';
+    } catch (e) {}
+    return cookiesValid(getCookies());
+  }
+  function updateStatus() {
+    const ok = accountOk();
+    $('status').dataset.state = ok ? 'ok' : 'bad';
+    $('statusLabel').textContent = ok ? 'Account working' : 'Account not working';
+  }
+
+  // يشغل أو يوقف البوت حسب حالة الحساب
+  function syncBot() {
+    const ok = cookiesValid(getCookies());
+    const b = window.AndroidBridge;
+    if (ok && !running) {
+      running = true;
+      if (b && b.startBot) b.startBot();
+      addMessage('Bot started.', 'sys');
+    } else if (!ok && running) {
+      running = false;
+      if (b && b.stopBot) b.stopBot();
+      addMessage('Bot stopped.', 'sys');
+    }
+  }
+
+  // ---------- الرسائل ----------
+
+  function addMessage(text, sender, imgs) {
+    imgs = imgs || [];
+    const cls = sender === 'user' ? 'user' : sender === 'sys' ? 'sys' : 'ai';
+    if (cls === 'user' && imgs.length) {
+      // الصور بلا إطار وصغار فوق الفقاعة، والنص ففقاعة بوحدو
+      const wrap = document.createElement('div');
+      wrap.className = 'msg-wrap';
+      const row = document.createElement('div');
+      row.className = 'thumbs';
+      imgs.forEach((src) => { const im = document.createElement('img'); im.src = src; row.appendChild(im); });
+      wrap.appendChild(row);
+      if (text) {
+        const b = document.createElement('div');
+        b.className = 'msg user';
+        b.appendChild(document.createTextNode(text));
+        wrap.appendChild(b);
+      }
+      messages.appendChild(wrap);
+    } else {
+      const div = document.createElement('div');
+      div.className = 'msg ' + cls;
+      if (text) div.appendChild(document.createTextNode(text));
+      messages.appendChild(div);
+    }
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function showTyping() {
+    if (document.getElementById('typingDots')) { messages.appendChild(document.getElementById('typingDots')); chatBox.scrollTop = chatBox.scrollHeight; return; }
+    const d = document.createElement('div');
+    d.id = 'typingDots';
+    d.className = 'typing';
+    d.innerHTML = '<div class="sq">' + [0,1,2,3,4,5].map((k) => '<i style="--a:' + (k * 60) + 'deg;--n:' + k + '"></i>').join('') + '</div>';
+    messages.appendChild(d);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+  function hideTyping() {
+    const d = document.getElementById('typingDots');
+    if (d) d.remove();
+  }
+
+  function onFbReply(key, author, body) {
+    // رد الكاتب كيبان فقالب ديال AI بلا اسم
+    hideTyping();
+    addMessage(body, 'ai');
+  }
+
+  function updateSend() {
+    sendBtn.disabled = input.value.trim().length === 0 && images.length === 0;
+  }
+
+  function sendMessage() {
+    const text = input.value.trim();
+    if (!text && images.length === 0) return;
+    const imgs = images.slice();
+    addMessage(text, 'user', imgs);
+    input.value = '';
+    input.style.height = 'auto';
+    images = [];
+    renderPreviews();
+    updateSend();
+    const bridge = window.AndroidBridge;
+    if (!bridge) { addMessage('Demo mode: no backend connected.', 'sys'); return; }
+    if (imgs.length && bridge.sendImageToFB) {
+      // النص كيتصيفط كتعليق مع أول صورة، والباقي صور بوحدها
+      showTyping();
+      // الصور: بلا رقم (1 / 2)، كيتصيفط غير النص كيما كتبتيه
+      imgs.forEach((src, i) => bridge.sendImageToFB(src, i === 0 ? text : ''));
+    } else {
+      if (text && bridge.sendReplyToFB) { showTyping(); bridge.sendReplyToFB((MODEL_PREFIX[model] || '') + text); }
+      if (imgs.length) addMessage('The backend does not support images yet.', 'sys');
+    }
+  }
+
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    updateSend();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  sendBtn.addEventListener('click', sendMessage);
+
+  // ---------- القائمة الجانبية والنوافذ ----------
+  // ---------- الوضع الليلي ----------
+  const THEME_KEY = 'theme';
+  const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function isDark() {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === 'dark' : !!(mq && mq.matches);
+  }
+  function syncNight() { $('nightBtn').setAttribute('aria-checked', isDark() ? 'true' : 'false'); }
+  (function () { const t = getLS(THEME_KEY); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; syncNight(); })();
+  $('nightBtn').addEventListener('click', () => {
+    const next = isDark() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    setLS(THEME_KEY, next);
+    syncNight();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', () => { if (!document.documentElement.dataset.theme) syncNight(); });
+
+  function openSide() { $('sideOverlay').classList.add('open'); }
+  function closeSide() { $('sideOverlay').classList.remove('open'); }
+  $('menuBtn').addEventListener('click', openSide);
+  $('sideOverlay').addEventListener('click', (e) => { if (e.target.id === 'sideOverlay') closeSide(); });
+  document.querySelectorAll('.panel').forEach((p) =>
+    p.addEventListener('click', (e) => { if (e.target === p) p.classList.remove('open'); }));
+
+  let confirmFn = null;
+  function ask(title, text, label, fn) {
+    $('confirmTitle').textContent = title;
+    $('confirmText').textContent = text;
+    $('confirmOk').textContent = label;
+    confirmFn = fn;
+    $('confirmPanel').classList.add('open');
+  }
+  $('confirmCancel').addEventListener('click', () => { confirmFn = null; $('confirmPanel').classList.remove('open'); });
+  $('confirmOk').addEventListener('click', () => {
+    $('confirmPanel').classList.remove('open');
+    const f = confirmFn; confirmFn = null;
+    if (f) f();
+  });
+
+  $('scanBtn').addEventListener('click', () => {
+    closeSide();
+    ask('Clear account data?', 'This removes the saved cookies and the chat history from this device.', 'Clear Data', () => {
+      delCookies();
+      messages.innerHTML = '';
+      const b = window.AndroidBridge;
+      if (b && b.clearData) b.clearData();
+      updateStatus();
+      syncBot();
+      addMessage('Account data cleared.', 'sys');
+    });
+  });
+  $('signOutBtn').addEventListener('click', () => {
+    closeSide();
+    ask('Sign out?', 'You will need to enter the cookies again to use the account.', 'Sign out', () => {
+      delCookies();
+      const b = window.AndroidBridge;
+      if (b && b.signOut) b.signOut();
+      updateStatus();
+      syncBot();
+      addMessage('Signed out.', 'sys');
+    });
+  });
+
+  // ---------- الملف الشخصي ----------
+  let profile = { name: getLS('profileName'), photo: getLS('profilePhoto') };
+  let draft = null;
+
+  function paintAvatar(el, photo, name) {
+    el.style.backgroundImage = photo ? 'url("' + photo + '")' : 'none';
+    el.classList.toggle('noimg', !photo);
+    el.querySelector('.ini').textContent = photo ? '' : (name.trim()[0] || 'G');
+  }
+  function refreshProfile() {
+    const n = profile.name || 'Guest';
+    $('sideName').textContent = n;
+    paintAvatar($('avatarSm'), profile.photo, n);
+  }
+  function isDirty() {
+    return !!draft && ($('nameInput').value.trim() !== profile.name || draft.photo !== profile.photo);
+  }
+  function paintDraft() {
+    paintAvatar($('avatarLg'), draft.photo, $('nameInput').value || 'Guest');
+    $('removePhoto').style.display = draft.photo ? '' : 'none';
+    $('saveProfile').disabled = !isDirty();
+  }
+  function fileToAvatar(file) {
+    return new Promise((res) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const n = 256, c = document.createElement('canvas');
+        c.width = c.height = n;
+        const m = Math.min(img.width, img.height);
+        c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, n, n);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      img.src = url;
+    });
+  }
+  $('profileBtn').addEventListener('click', () => {
+    closeSide();
+    draft = { photo: profile.photo };
+    $('nameInput').value = profile.name;
+    paintDraft();
+    $('profilePage').classList.add('open');
+  });
+  $('profileBack').addEventListener('click', () => $('profilePage').classList.remove('open'));
+  $('nameInput').addEventListener('input', paintDraft);
+  $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('saveProfile').disabled) $('saveProfile').click(); });
+  $('avatarLg').addEventListener('click', () => $('photoInput').click());
+  $('changePhoto').addEventListener('click', () => $('photoInput').click());
+  $('removePhoto').addEventListener('click', () => { draft.photo = ''; paintDraft(); });
+  $('photoInput').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const data = await fileToAvatar(f);
+    if (data) { draft.photo = data; paintDraft(); }
+  });
+  $('saveProfile').addEventListener('click', () => {
+    profile = { name: $('nameInput').value.trim().slice(0, 32), photo: draft.photo };
+    setLS('profileName', profile.name);
+    if (profile.photo) setLS('profilePhoto', profile.photo); else delLS('profilePhoto');
+    refreshProfile();
+    paintDraft();
+    const b = $('saveProfile');
+    b.textContent = 'Saved';
+    setTimeout(() => { b.textContent = 'Update profile'; }, 1500);
+  });
+
+  // ---------- القوائم المنسدلة ----------
+  const menus = [[$('modelBtn'), $('modelMenu')], [$('status'), $('statusMenu')]];
+  function closeMenus() {
+    menus.forEach(([b, m]) => { m.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); });
+  }
+  menus.forEach(([b, m]) => b.addEventListener('click', () => {
+    const open = !m.classList.contains('open');
+    closeMenus();
+    if (open) { m.classList.add('open'); b.setAttribute('aria-expanded', 'true'); }
+  }));
+  document.addEventListener('click', (e) => { if (!e.target.closest('.dd')) closeMenus(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeMenus(); closeSide(); $('profilePage').classList.remove('open');
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('open'));
+  });
+
+  // اختيار النموذج: DeepSeek / Gemini
+  document.querySelectorAll('#modelMenu .item').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('#modelMenu .item').forEach((x) => x.classList.remove('sel'));
+    b.classList.add('sel');
+    const changed = model !== b.dataset.model;
+    model = b.dataset.model;
+    $('modelIco').innerHTML = b.querySelector('svg.mi').outerHTML;
+    $('modelLabel').textContent = b.dataset.label;
+    closeMenus();
+    if (!changed) return;
+    try { if (window.AndroidBridge && window.AndroidBridge.setModel) window.AndroidBridge.setModel(model); } catch (e) {}
+    addMessage('Model: ' + b.dataset.label, 'sys');
+  }));
+
+  $('loginFb').addEventListener('click', () => { closeMenus(); window.open('https://www.facebook.com/login', '_blank'); });
+  // سحب الخط الصغير للأسفل لإغلاق النوافذ السفلية
+  function makeDismissable(panelId, onClose) {
+    const panel = $(panelId), sheet = panel.querySelector('.sheet'), grab = sheet.querySelector('.grab');
+    let y0 = null, dy = 0;
+    const close = () => { panel.classList.remove('open'); if (onClose) onClose(); };
+    panel.addEventListener('click', (e) => { if (e.target === panel) close(); });
+    grab.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; dy = 0; sheet.classList.add('drag'); }, { passive: true });
+    grab.addEventListener('touchmove', (e) => {
+      if (y0 === null) return;
+      dy = Math.max(0, e.touches[0].clientY - y0);
+      sheet.style.transform = 'translateY(' + dy + 'px)';
+    }, { passive: true });
+    const end = () => {
+      if (y0 === null) return;
+      y0 = null;
+      sheet.classList.remove('drag');
+      sheet.style.transition = 'transform .22s ease';
+      if (dy > 90) {
+        sheet.style.transform = 'translateY(105%)';
+        setTimeout(() => { close(); sheet.style.transform = ''; sheet.style.transition = ''; }, 220);
+      } else {
+        sheet.style.transform = '';
+        setTimeout(() => { sheet.style.transition = ''; }, 230);
+      }
+    };
+    grab.addEventListener('touchend', end);
+    grab.addEventListener('touchcancel', end);
+  }
+  makeDismissable('cookiePanel');
+  makeDismissable('confirmPanel', () => { confirmFn = null; });
+
+  function hasCookie(raw, name) {
+    if (!raw) return false;
+    try { return JSON.parse(raw).some((c) => c && c.name === name); }
+    catch (e) { return new RegExp('(^|;\\s*)' + name + '=').test(raw); }
+  }
+  function updateChips() {
+    const raw = $('cookieInput').value.trim();
+    $('chipUser').classList.toggle('ok', hasCookie(raw, 'c_user'));
+    $('chipXs').classList.toggle('ok', hasCookie(raw, 'xs'));
+    $('saveCookies').disabled = !cookiesValid(raw);
+  }
+  $('cookieInput').addEventListener('input', updateChips);
+  $('pasteCookies').addEventListener('click', async () => {
+    try { $('cookieInput').value = await navigator.clipboard.readText(); updateChips(); }
+    catch (e) { $('cookieInput').focus(); }
+  });
+  $('openCookies').addEventListener('click', () => {
+    closeMenus();
+    $('cookieInput').value = getCookies();
+    updateChips();
+    $('cookiePanel').classList.add('open');
+  });
+  $('cancelCookies').addEventListener('click', () => $('cookiePanel').classList.remove('open'));
+  $('saveCookies').addEventListener('click', () => {
+    const raw = $('cookieInput').value.trim();
+    if (!cookiesValid(raw)) {
+      addMessage('Invalid cookies: c_user and xs are required.', 'sys');
+      return;
+    }
+    setCookies(raw);
+    updateStatus();
+    $('cookiePanel').classList.remove('open');
+    addMessage('Cookies saved.', 'sys');
+    syncBot();
+  });
+
+  // ---------- الصور ----------
+  function renderPreviews() {
+    const box = $('previews');
+    box.innerHTML = '';
+    images.forEach((src, i) => {
+      const t = document.createElement('div');
+      t.className = 'thumb';
+      const im = document.createElement('img');
+      im.src = src;
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Remove image');
+      x.innerHTML = '<svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+      x.addEventListener('click', () => { images.splice(i, 1); renderPreviews(); updateSend(); });
+      t.appendChild(im);
+      t.appendChild(x);
+      box.appendChild(t);
+    });
+  }
+  function readFile(f) {
+    return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); });
+  }
+  // كنصغرو الصورة (1280px كحد أقصى، JPEG) باش الإرسال يكون خفيف
+  function shrink(dataUrl) {
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k);
+        c.height = Math.round(img.height * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => res(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+  // الصور كتتحل مباشرة من Java (سريعة)، وإلا ما كانش الجسر كنرجعو للـ input
+  function addPickedImages(arr) {
+    (arr || []).forEach((src) => images.push(src));
+    renderPreviews();
+    updateSend();
+  }
+  $('attachBtn').addEventListener('click', () => {
+    const b = window.AndroidBridge;
+    if (b && b.pickImages) b.pickImages(); else $('fileInput').click();
+  });
+  $('fileInput').addEventListener('change', async (e) => {
+    for (const f of e.target.files) {
+      if (f.type.startsWith('image/')) images.push(await shrink(await readFile(f)));
+    }
+    e.target.value = '';
+    renderPreviews();
+    updateSend();
+  });
+
+  // ---------- الكيبورد: نتبعو الحجم المرئي فنفس اللحظة ----------
+  (function () {
+    const vv = window.visualViewport;
+    function fit() {
+      const root = document.documentElement;
+      if (vv) {
+        root.style.setProperty('--app-h', vv.height + 'px');
+        root.style.setProperty('--app-top', vv.offsetTop + 'px');
+      } else {
+        root.style.setProperty('--app-h', window.innerHeight + 'px');
+      }
+      window.scrollTo(0, 0);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
+    window.addEventListener('resize', fit);
+    input.addEventListener('focus', () => { fit(); setTimeout(fit, 120); setTimeout(fit, 300); });
+    fit();
+  })();
+
+  // ---------- البداية ----------
+  refreshProfile();
+  updateStatus();
+  addMessage('Ready.', 'sys');
+  syncBot();
+</script>
+</body>
+</html>
