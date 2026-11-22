@@ -27,3 +27,8 @@ Real internet is only used by the bot. You only view and post text on free Faceb
 ### Limitations
 
 The free plan usually allows text only (the notice says "view and post text"). Images and image generation may require a data balance. This has not been tested.
+
+
+
+<img width="1280" height="661" alt="20261122_184826" src="https://github.com/user-attachments/assets/3a1c2121-06f6-4517-976b-6f36e7d5938b" />
+
